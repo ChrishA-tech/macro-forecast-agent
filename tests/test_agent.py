@@ -154,3 +154,13 @@ def test_streamlit_chat_demo_mode(monkeypatch):
     assert not at.exception and "SYNTHETIC" in at.sidebar.warning[0].value
     at.button[0].click().run()
     assert not at.exception
+
+
+def test_classifier_blocks_when_rules_pass():
+    class AlwaysAttack:
+        threshold = 0.5
+        def probability(self, text):
+            return 0.99
+    r = graph.ask("Forecast Brent crude for the next 6 months", P, None, classifier=AlwaysAttack())
+    assert r["status"] == "blocked"
+    assert graph.ask("Forecast Brent crude for the next 6 months", P, None, classifier=None)["status"] == "success"

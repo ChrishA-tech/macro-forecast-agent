@@ -8,7 +8,8 @@ LangGraph workflow v2 (Nov 2026):
         │                       └──retries exhausted──▶ END (status=error)
         └──unsafe──▶ rejection ──▶ END
 
-- input_guardrail: promptguard.guardrails v2 (normalisation, decoding, scoring)
+- input_guardrail: promptguard.guardrails v2 (normalisation, decoding, scoring), optionally followed by
+  the learned classifier (promptguard.classifier, rule name ML_CLASSIFIER)
 - llm_extraction: any callable str -> JSON str (deterministic simulator by default,
   Claude via make_claude_extractor)
 - output_guard: redacts PII/secrets; withholds output that leaks the canary token
@@ -78,9 +79,12 @@ class _CompiledFallbackStateGraph:
         return current_state
 
 
-def build_langgraph_workflow(llm_callable: Optional[Callable[[str], str]] = None):
+def build_langgraph_workflow(llm_callable: Optional[Callable[[str], str]] = None, classifier=None):
 
     def input_guardrail_node(state: AgentWorkflowState) -> dict:
+        if classifier is not None:
+            from .classifier import hybrid_assess
+            return {"guardrail_result": hybrid_assess(state["raw_prompt"], classifier, state.get("strict_mode", True))}
         return {"guardrail_result": evaluate_prompt_safety(state["raw_prompt"], state.get("strict_mode", True))}
 
     def route_after_guardrail(state: AgentWorkflowState) -> str:
@@ -149,11 +153,11 @@ def build_langgraph_workflow(llm_callable: Optional[Callable[[str], str]] = None
 def run_protected_extraction_workflow(user_id: str, prompt: str, strict_mode: bool = True,
                                       llm_callable: Optional[Callable[[str], str]] = None,
                                       max_attempts: int = 2, canary: str = "",
-                                      request_id: Optional[str] = None) -> WorkflowResponse:
+                                      request_id: Optional[str] = None, classifier=None) -> WorkflowResponse:
     """Runs the compiled workflow and returns a validated WorkflowResponse (and writes one audit line)."""
     request_id = request_id or uuid.uuid4().hex
     t0 = time.perf_counter()
-    app = build_langgraph_workflow(llm_callable=llm_callable)
+    app = build_langgraph_workflow(llm_callable=llm_callable, classifier=classifier)
     final = app.invoke({"request_id": request_id, "user_id": user_id, "raw_prompt": prompt,
                         "strict_mode": strict_mode, "canary": canary, "guardrail_result": None,
                         "extracted_result": None, "status": "pending", "error_detail": None,

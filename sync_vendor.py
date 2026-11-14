@@ -10,7 +10,8 @@ HERE = Path(__file__).resolve().parent
 SRC = {"oilcast": "oil-price-forecasting", "ukcpi": "uk-cpi-forecasting", "promptguard": "langgraph-prompt-guard"}
 DATA = {"oil-price-forecasting": ["data/brent_monthly.csv", "results/backtest.json"],
         "uk-cpi-forecasting": ["data/uk_macro_monthly.csv", "data/sources.json", "results/backtest.json"],
-        "langgraph-prompt-guard": ["results/eval.json"]}
+        "langgraph-prompt-guard": ["results/eval.json", "models/prompt_injection_clf.joblib",
+                                   "models/prompt_injection_clf.json"]}
 
 for pkg, repo in SRC.items():
     src = HERE.parent / repo / pkg

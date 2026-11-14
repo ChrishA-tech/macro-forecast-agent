@@ -24,6 +24,8 @@ from typing import Any, Callable, Dict, List, Optional, TypedDict
 
 from . import VENDOR  # noqa: F401
 from promptguard.guardrails import evaluate_prompt_safety
+from functools import lru_cache
+from pathlib import Path
 from promptguard.output_guard import redact_text
 
 from .grounding import check_grounding, flatten_facts
@@ -117,9 +119,28 @@ HELP = ("I can forecast Brent crude oil and UK CPI inflation, estimate how oil-p
         "months?\", \"What happens to UK inflation if oil rises 20%?\", \"How accurate are the models?\"")
 
 
-def build_agent(provider: DataProvider, llm: Optional[LLM] = None, strict: bool = True):
+CLASSIFIER_PATH = (Path(__file__).resolve().parent.parent / "vendor_data" / "langgraph-prompt-guard" / "models"
+                   / "prompt_injection_clf.joblib")
+
+
+@lru_cache(maxsize=1)
+def default_classifier():
+    """The prompt-guard repo's trained injection classifier (vendored), or None (rules only)."""
+    if not CLASSIFIER_PATH.exists():
+        return None
+    try:
+        from promptguard.classifier import InjectionClassifier
+        return InjectionClassifier.load(CLASSIFIER_PATH)
+    except Exception:          # scikit-learn missing or incompatible pickle: fall back to rules
+        return None
+
+
+def build_agent(provider: DataProvider, llm: Optional[LLM] = None, strict: bool = True, classifier=None):
 
     def input_guard(s: AgentState) -> dict:
+        if classifier is not None:
+            from promptguard.classifier import hybrid_assess
+            return {"guard": hybrid_assess(s["question"], classifier, strict)}
         return {"guard": evaluate_prompt_safety(s["question"], strict_mode=strict)}
 
     def after_guard(s: AgentState) -> str:
@@ -207,9 +228,11 @@ def build_agent(provider: DataProvider, llm: Optional[LLM] = None, strict: bool 
     return _CompiledFallbackStateGraph(nodes, "input_guard", cond, edges)
 
 
-def ask(question: str, provider: DataProvider, llm: Optional[LLM] = None) -> Dict[str, Any]:
+def ask(question: str, provider: DataProvider, llm: Optional[LLM] = None, classifier="auto") -> Dict[str, Any]:
     t0 = time.perf_counter()
-    state = build_agent(provider, llm).invoke({"request_id": uuid.uuid4().hex, "question": question})
+    if classifier == "auto":
+        classifier = default_classifier()
+    state = build_agent(provider, llm, classifier=classifier).invoke({"request_id": uuid.uuid4().hex, "question": question})
     r = state.get("route")
     return {"request_id": state["request_id"], "status": state.get("status"), "answer": state.get("answer"),
             "answer_source": state.get("answer_source"), "intent": r.intent if r else None,

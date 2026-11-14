@@ -1,6 +1,7 @@
 """
 FastAPI service: POST /api/v1/extract runs the guarded LangGraph workflow.
 Uses Claude when ANTHROPIC_API_KEY is set (PROMPTGUARD_LLM=claude), else the deterministic simulator.
+Loads the trained injection classifier from models/ if present (rules + classifier), else rules only.
 Every response carries a request ID (body + X-Request-ID header) that matches the audit log.
 """
 from __future__ import annotations
@@ -23,6 +24,11 @@ app = FastAPI(title="AI Safety Prompt Guard & LangGraph Extraction API", version
 
 _LLM = None
 _CANARY = new_canary()
+try:
+    from .classifier import InjectionClassifier
+    _CLF = None if os.environ.get("PROMPTGUARD_CLASSIFIER") == "off" else InjectionClassifier.load_default()
+except ImportError:          # scikit-learn not installed: rules only
+    _CLF = None
 
 
 def _llm():
@@ -44,13 +50,14 @@ async def validation_handler(request: Request, exc: RequestValidationError):
 @app.get("/health")
 def health_check():
     return {"status": "healthy", "service": "langgraph-prompt-guard",
-            "llm": "claude" if _llm() is not None else "simulator"}
+            "llm": "claude" if _llm() is not None else "simulator",
+            "input_guard": "rules + classifier" if _CLF is not None else "rules"}
 
 
 @app.post("/api/v1/extract", response_model=WorkflowResponse)
 def extract_endpoint(payload: PromptInputRequest):
     result = run_protected_extraction_workflow(user_id=payload.user_id, prompt=payload.prompt,
                                                strict_mode=payload.strict_mode, llm_callable=_llm(),
-                                               canary=_CANARY)
+                                               canary=_CANARY, classifier=_CLF)
     code = {"success": 200, "blocked": status.HTTP_403_FORBIDDEN, "error": status.HTTP_422_UNPROCESSABLE_ENTITY}[result.status]
     return JSONResponse(status_code=code, content=result.model_dump(), headers={"X-Request-ID": result.request_id})
