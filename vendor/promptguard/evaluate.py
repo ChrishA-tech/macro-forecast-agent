@@ -109,8 +109,14 @@ def main(argv=None):
     a = ap.parse_args(argv)
     loaders = {"dev": load_dev, "deepset": lambda: load_deepset(a.refresh)}
     res = {"run_at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "datasets": {}}
+    failed = []
     for ds in a.datasets:
-        rows = loaders[ds]()
+        try:
+            rows = loaders[ds]()
+        except Exception as e:   # e.g. no network: keep going with the other datasets
+            print(f"!! Could not load {ds}: {type(e).__name__}: {e}")
+            failed.append(ds)
+            continue
         res["datasets"][ds] = {"v1 (original)": score(rows, guard_v1, True),
                                "v2 strict": score(rows, guard_v2, True),
                                "v2 lenient": score(rows, guard_v2, False)}
@@ -128,6 +134,8 @@ def main(argv=None):
     if START in s and "deepset" in res["datasets"]:
         readme.write_text(s[:s.index(START) + len(START)] + "\n" + md + s[s.index(END):], encoding="utf-8")
     print(md)
+    if failed:
+        raise SystemExit(f"Dataset(s) not evaluated: {', '.join(failed)} (results for the others were saved).")
     return res
 
 
