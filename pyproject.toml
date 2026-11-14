@@ -1,0 +1,12 @@
+[project]
+name = "macroagent"
+version = "1.0.0"
+description = "Guarded LangGraph agent over Brent crude and UK CPI forecasting tools, with Claude and grounding checks"
+requires-python = ">=3.10"
+
+[tool.setuptools]
+packages = ["macroagent"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = [".", "tests"]
