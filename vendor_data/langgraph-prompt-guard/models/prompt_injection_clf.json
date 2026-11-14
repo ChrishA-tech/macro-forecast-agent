@@ -1,0 +1,12 @@
+{
+  "model": "TF-IDF char(2-5)+word(1-2) n-grams -> class-balanced logistic regression",
+  "trained_on": "deepset/prompt-injections train split",
+  "n_train": 546,
+  "n_attacks": 203,
+  "C": 32.0,
+  "threshold": 0.45,
+  "cv_folds": 5,
+  "cv_f1": 0.9208,
+  "selection": "C and threshold chosen by stratified CV on the training data only",
+  "trained_at": "2026-11-14T16:52:02+00:00"
+}
