@@ -25,6 +25,7 @@ from typing import Any, Callable, Dict, List, Optional, TypedDict
 from . import VENDOR  # noqa: F401
 from promptguard.guardrails import evaluate_prompt_safety
 from functools import lru_cache
+import os
 from pathlib import Path
 from promptguard.output_guard import redact_text
 
@@ -125,8 +126,11 @@ CLASSIFIER_PATH = (Path(__file__).resolve().parent.parent / "vendor_data" / "lan
 
 @lru_cache(maxsize=1)
 def default_classifier():
-    """The prompt-guard repo's trained injection classifier (vendored), or None (rules only)."""
-    if not CLASSIFIER_PATH.exists():
+    """
+    The prompt-guard repo's trained classifier, only if MACROAGENT_CLASSIFIER=on (else rules only).
+    Opt-in because it wrongly flags many benign prompts unlike its training data (see langgraph-prompt-guard).
+    """
+    if os.environ.get("MACROAGENT_CLASSIFIER") != "on" or not CLASSIFIER_PATH.exists():
         return None
     try:
         from promptguard.classifier import InjectionClassifier

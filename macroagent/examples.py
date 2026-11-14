@@ -13,7 +13,8 @@ START, END = "<!-- EXAMPLES:START -->", "<!-- EXAMPLES:END -->"
 def main():
     p = DataProvider.from_vendor_data()
     llm = default_llm()
-    guard = "rules + learned classifier" if default_classifier() else "rules"
+    guard = ("rules + learned classifier" if default_classifier()
+             else "rules (the learned classifier is opt-in: MACROAGENT_CLASSIFIER=on)")
     lines = [f"Real data up to {p.brent['date'].iloc[-1]:%Y-%m} (Brent) and {p.macro['date'].iloc[-1]:%Y-%m} (CPI); "
              f"answers: {'Claude, grounding-checked' if llm else 'deterministic templates'}; input guard: {guard}.", ""]
     wrong = []

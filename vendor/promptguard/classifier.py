@@ -87,7 +87,8 @@ class InjectionClassifier:
                     best = (f1, C, t)
         f1, C, t = best
         model = _pipeline(C, seed).fit(X, y)
-        card = {"model": "TF-IDF char(2-5)+word(1-2) n-grams -> class-balanced logistic regression",
+        import sklearn
+        card = {"sklearn_version": sklearn.__version__, "model": "TF-IDF char(2-5)+word(1-2) n-grams -> class-balanced logistic regression",
                 "trained_on": data_name, "n_train": len(y), "n_attacks": int(y.sum()),
                 "C": C, "threshold": t, "cv_folds": folds, "cv_f1": round(f1, 4),
                 "selection": "C and threshold chosen by stratified CV on the training data only",

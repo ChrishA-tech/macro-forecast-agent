@@ -25,7 +25,7 @@ input_guard ──unsafe──▶ refuse
 ## Examples (real data)
 
 <!-- EXAMPLES:START -->
-Real data up to 2026-10 (Brent) and 2026-09 (CPI); answers: deterministic templates; input guard: rules + learned classifier.
+Real data up to 2026-10 (Brent) and 2026-09 (CPI); answers: deterministic templates; input guard: rules (the learned classifier is opt-in: MACROAGENT_CLASSIFIER=on).
 
 > **What is the latest Brent price and UK inflation rate?**  
 > latest Brent month: 2026-10; latest Brent price (USD/bbl): 123.93; latest CPI month: 2026-09; latest CPI inflation (%): 3.5; latest Bank Rate (%): 3.75.  

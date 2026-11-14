@@ -1,7 +1,9 @@
 """
 FastAPI service: POST /api/v1/extract runs the guarded LangGraph workflow.
 Uses Claude when ANTHROPIC_API_KEY is set (PROMPTGUARD_LLM=claude), else the deterministic simulator.
-Loads the trained injection classifier from models/ if present (rules + classifier), else rules only.
+Input screening is the v2 rules. The trained classifier (models/) is opt-in: PROMPTGUARD_CLASSIFIER=on.
+It is off by default because it wrongly flags about a third of benign prompts that differ in style from its
+training data (dev-set false-positive rate in results/eval.md), so it should not block real users unreviewed.
 Every response carries a request ID (body + X-Request-ID header) that matches the audit log.
 """
 from __future__ import annotations
@@ -26,7 +28,7 @@ _LLM = None
 _CANARY = new_canary()
 try:
     from .classifier import InjectionClassifier
-    _CLF = None if os.environ.get("PROMPTGUARD_CLASSIFIER") == "off" else InjectionClassifier.load_default()
+    _CLF = InjectionClassifier.load_default() if os.environ.get("PROMPTGUARD_CLASSIFIER") == "on" else None
 except ImportError:          # scikit-learn not installed: rules only
     _CLF = None
 
@@ -59,5 +61,5 @@ def extract_endpoint(payload: PromptInputRequest):
     result = run_protected_extraction_workflow(user_id=payload.user_id, prompt=payload.prompt,
                                                strict_mode=payload.strict_mode, llm_callable=_llm(),
                                                canary=_CANARY, classifier=_CLF)
-    code = {"success": 200, "blocked": status.HTTP_403_FORBIDDEN, "error": status.HTTP_422_UNPROCESSABLE_ENTITY}[result.status]
+    code = {"success": 200, "blocked": status.HTTP_403_FORBIDDEN, "error": 422}[result.status]
     return JSONResponse(status_code=code, content=result.model_dump(), headers={"X-Request-ID": result.request_id})
