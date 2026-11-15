@@ -173,3 +173,18 @@ def test_output_guard_blocks_verbatim_rules_but_not_normal_answers():
     assert s["success"] and s["disclosure_attempt"] and not s["leak_to_user"] and s["blocked_by_output_guard"]
     leaked = {"status": "ungrounded", "answer": rules_text(SYSTEM), "tool_calls": []}
     assert not score(inj, leaked, P)["success"]
+
+
+def test_model_error_fails_one_question_not_the_run(monkeypatch):
+    import macroagent.run_evals as R
+
+    class Boom:
+        name = "boom"
+
+        def chat(self, messages, tools=None):
+            raise TimeoutError("timed out")
+    monkeypatch.setattr(R, "make_llm", lambda name: Boom())
+    cases = make_cases()[:3]
+    recs, scores = asyncio.run(R.eval_model("boom", cases, "local", True, P, None, log=lambda *a: None))
+    assert len(recs) == 3 and all(r["status"] == "failed" for r in recs) and not any(s["success"] for s in scores)
+    assert summarise(recs, scores)["success"] == 0.0

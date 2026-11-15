@@ -43,7 +43,12 @@ async def eval_model(name: str, cases, transport: str, synthetic: bool, provider
     records, scores = [], []
     async with box:
         for i, c in enumerate(cases, 1):
-            rec = await run_agent(c["question"], llm, box, tracer)
+            try:
+                rec = await run_agent(c["question"], llm, box, tracer)
+            except Exception as e:      # a hung or crashed model call fails this question, not the whole run
+                rec = {"question": c["question"], "model": getattr(llm, "name", name), "tool_calls": [], "llm_calls": 0,
+                       "prompt_tokens": 0, "completion_tokens": 0, "repaired": False, "answer": "",
+                       "status": "failed", "failure": f"{type(e).__name__}: {e}"[:300], "seconds": 0.0}
             rec["id"] = c["id"]
             s = score(c, rec, provider)
             records.append(rec)

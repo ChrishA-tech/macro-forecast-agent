@@ -44,9 +44,10 @@ def ollama_models(host: str = OLLAMA) -> List[str]:
 
 class OllamaChat:
     def __init__(self, model: str, host: str = OLLAMA, temperature: float = 0.0, num_ctx: int = 8192,
-                 timeout: float = 300, seed: int = 7):
+                 timeout: float = 180, seed: int = 7, num_predict: int = 600):
         self.model, self.host, self.timeout = model, host, timeout
-        self.options = {"temperature": temperature, "num_ctx": num_ctx, "seed": seed}
+        # num_predict caps the reply length: answers are 2-5 sentences, and an uncapped small model can loop
+        self.options = {"temperature": temperature, "num_ctx": num_ctx, "seed": seed, "num_predict": num_predict}
         self.name = model
 
     def chat(self, messages: List[Dict[str, Any]], tools: Optional[List[Dict[str, Any]]] = None) -> ChatResult:
@@ -55,7 +56,11 @@ class OllamaChat:
             body["tools"] = [{"type": "function", "function": {"name": t["name"], "description": t["description"],
                                                                "parameters": t["parameters"]}} for t in tools]
         t0 = time.perf_counter()
-        r = _post(self.host + "/api/chat", body, self.timeout)
+        try:
+            r = _post(self.host + "/api/chat", body, self.timeout)
+        except (TimeoutError, OSError):        # one retry, then let the caller record the question as failed
+            time.sleep(5)
+            r = _post(self.host + "/api/chat", body, self.timeout)
         msg = r.get("message", {})
         calls = []
         for c in msg.get("tool_calls") or []:
