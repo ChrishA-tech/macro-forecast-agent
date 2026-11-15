@@ -96,9 +96,14 @@ def cpi_forecast(p: DataProvider, horizon: int = 12) -> Dict[str, Any]:
     return {"tool": "cpi_forecast", "facts": facts, "source": "ukcpi direct AR/ARX regressions (ONS, BoE, FRED data)"}
 
 
-def oil_cpi_scenario(p: DataProvider, oil_change_pct: float) -> Dict[str, Any]:
+def oil_cpi_scenario(p: DataProvider, oil_change_pct: float = None, target_price_usd: float = None) -> Dict[str, Any]:
+    facts = {}
+    if oil_change_pct is None:          # target price: convert here, so the model never does the arithmetic
+        last = float(p.brent["brent_usd"].iloc[-1])
+        oil_change_pct = price_to_pct(p, float(target_price_usd))
+        facts.update({"latest Brent price (USD/bbl)": round(last, 2), "target Brent price (USD/bbl)": float(target_price_usd)})
     sc = oil_scenario(p.macro, oil_change_pct)
-    facts = {"assumed Brent change (%)": round(float(oil_change_pct), 1)}
+    facts["assumed Brent change (%)"] = round(float(oil_change_pct), 1)
     logb = np.log(p.macro["brent_usd"].to_numpy(dtype=float))
     max_seen = float(np.nanmax(np.abs(100 * (logb[12:] - logb[:-12])))) if len(logb) > 12 else 0.0
     if abs(100 * np.log1p(oil_change_pct / 100)) > max_seen:

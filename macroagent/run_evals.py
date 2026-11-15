@@ -99,11 +99,11 @@ def run(models: List[str], transport: str = "mcp", limit: int = 0, synthetic: bo
 
 
 def report_md(out: Dict) -> str:
-    L = [f"Run {out['run_at'][:10]}: {out['n_cases']} labelled questions in 10 categories, tools reached over "
+    L = [f"Run {out['run_at'][:10]}: {out['n_cases']} labelled questions in {len({c for d in out['models'].values() for c in d['summary']['by_category']})} categories, tools reached over "
          f"{'MCP (stdio)' if out['transport'] == 'mcp' else 'in-process calls'}, models run locally with Ollama "
          f"(cost $0). Scored against the tools' own outputs, no LLM judge. Brackets: 95% bootstrap CI."
          + (" SYNTHETIC DATA (test run)." if out.get("synthetic_data") else ""), "",
-         "| Model | Task success | Tool selection | Arguments | Grounded answers | Injection leaks | p50 / p95 latency | Tokens per question | Same tokens on Haiku 5.5 / Sonnet 5.5 API, per 100 questions |",
+         "| Model | Task success | Tool selection | Arguments | Grounded answers | Injection: leaks to user / model attempts | p50 / p95 latency | Tokens per question | Same tokens on Haiku 5.5 / Sonnet 5.5 API, per 100 questions |",
          "|---|---|---|---|---|---|---|---|---|"]
     for m, d in out["models"].items():
         s = d["summary"]
@@ -111,7 +111,7 @@ def report_md(out: Dict) -> str:
         L.append(f"| {m} | **{s['success']:.3f}** ({s['success_ci95'][0]:.2f}-{s['success_ci95'][1]:.2f}) | "
                  f"{s['tool_selection']:.3f} | {s['argument_accuracy'] if s['argument_accuracy'] is not None else '-'} | "
                  f"{s['grounded_answers'] if s['grounded_answers'] is not None else '-'} | "
-                 f"{s['injection']['leaks']}/{s['injection']['attempts']} | {s['latency_s']['p50']} / {s['latency_s']['p95']} s | "
+                 f"{s['injection']['leaks']}/{s['injection']['attempts']} / {s['injection'].get('model_disclosure_attempts', '-')} | {s['latency_s']['p50']} / {s['latency_s']['p95']} s | "
                  f"{s['tokens']['per_question']} | " + (f"${cost['Claude Haiku 5.5']:.2f} / ${cost['Claude Sonnet 5.5']:.2f} |"
                                                         if s['tokens']['per_question'] else "- |"))
     cats = sorted({c for d in out["models"].values() for c in d["summary"]["by_category"]})
@@ -124,6 +124,25 @@ def report_md(out: Dict) -> str:
                   f"run-time check): task success {c['success']:.3f} ({c['success_ci95'][0]:.2f}-{c['success_ci95'][1]:.2f}), "
                   f"{c['escalated']} of {out['n_cases']} questions escalated, latency p50 {c['latency_s']['p50']} s / "
                   f"p95 {c['latency_s']['p95']} s. Computed from the two recorded runs."]
+    v1 = RESULTS / "v1" / "agent_eval_rescored.json"
+    if v1.exists() and not out.get("synthetic_data"):
+        b = json.loads(v1.read_text())["models"]
+        L += ["", "**v1 vs v2** (same scorer; v1 answers re-scored from `results/v1/`, v2 = this run). v2 changes: "
+                  "the scenario tool takes a target price itself, clearer chain-tool description, output guard against "
+                  "verbatim prompt disclosure, 12 new held-out injection attacks (`injection_new`, v2 only).", "",
+              "| Model | Success v1 → v2 (original 102) | scenario_price | chain | Injection leaks to user v1 → v2 | "
+              "Held-out attacks leaked (v2) | Output-guard false positives (v2) |", "|---|---|---|---|---|---|---|"]
+        for m, d in out["models"].items():
+            if m not in b:
+                continue
+            o, n = b[m]["summary"], d["summary"]
+            nc = [c for c in d["cases"] if c["category"] == "injection_new"]
+            L.append(f"| {m} | {o['success']:.3f} → **{n['success_original_102']:.3f}** | "
+                     f"{o['by_category'].get('scenario_price', 0):.2f} → {n['by_category'].get('scenario_price', 0):.2f} | "
+                     f"{o['by_category'].get('chain', 0):.2f} → {n['by_category'].get('chain', 0):.2f} | "
+                     f"{o['injection']['leaks']}/12 → "
+                     f"{sum(c['leak_to_user'] for c in d['cases'] if c['category'] == 'injection')}/12 | "
+                     f"{sum(c['leak_to_user'] for c in nc)}/{len(nc)} | {n['output_guard_false_positives']} |")
     L += ["", "Every answer is in `results/agent_eval_records.jsonl`; every model and tool call is an OpenTelemetry "
               "span in `results/traces.jsonl`."]
     return "\n".join(L)

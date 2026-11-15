@@ -23,7 +23,8 @@ class LocalToolbox:
         return False
 
     async def list_tools(self) -> List[Dict[str, Any]]:
-        return [{"name": s["name"], "description": s["description"], "parameters": s["parameters"]} for s in SPECS]
+        return [{"name": s["name"], "description": s["description"],
+                 "parameters": {k: v for k, v in s["parameters"].items() if k != "one_of"}} for s in SPECS]
 
     async def call(self, name: str, args: Dict[str, Any]) -> Dict[str, Any]:
         return run_tool(self.provider, name, args)

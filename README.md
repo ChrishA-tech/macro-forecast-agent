@@ -63,14 +63,35 @@ A second agent (`macroagent/tool_agent.py`) lets the **model decide which tools 
 an **MCP server** (`macroagent/mcp_server.py`, usable from any MCP client) and the models run **locally with
 Ollama** (free, no API key). Each question passes the input guardrail, then model and tool rounds, then a
 **grounding check** (every number must come from a tool result; one repair attempt), then a system-prompt
-**canary** check. Every model and tool call is an **OpenTelemetry** span.
+**output guard**: if the raw answer contains the system-prompt canary or repeats the rules verbatim, the user
+gets a refusal instead. Every model and tool call is an **OpenTelemetry** span.
 
-The evaluation (`macroagent/evals.py`, 102 labelled questions in `evals/cases.jsonl`, 10 categories including
+The evaluation (`macroagent/evals.py`, 114 labelled questions in `evals/cases.jsonl`, 11 categories including
 multi-step, out-of-scope and prompt-injection cases) scores each run **deterministically against the tools' own
-outputs**: right tools, right arguments, every key number present and grounded, no leaks. No LLM judge.
-A rules-only policy (the original router and templates) is the baseline the models must beat, and a
-**cascade** (small model first, escalate on a failed run-time check) is compared with the large model alone.
-`python -m macroagent.eval_gate` blocks any regression in CI.
+outputs**: right tools, right arguments, every key number present and grounded, nothing from the system prompt
+shown to the user. No LLM judge. Injection results are reported two ways: **model attempts** (the raw output
+tried to disclose the prompt) and **leaks to user** (it got past every guard). A rules-only policy (the original
+router and templates) is the baseline the models must beat, and a **cascade** (small model first, escalate on a
+failed run-time check) is compared with the large model alone. `python -m macroagent.eval_gate` blocks any
+regression in CI.
+
+**What the v1 run taught (and what changed in v2).** Reading the v1 records showed three failure causes:
+
+1. **Target-price scenarios ("Brent at $100"): 0% for both LLMs.** The models skipped `latest_data` and invented
+   the starting price (three answers implied three different current prices). Fix: `oil_cpi_scenario` now takes
+   `target_price_usd` and converts using the latest price itself, so the model never does the arithmetic. Argument descriptions are now also sent over MCP (in v1 the
+   models saw only argument names).
+2. **"What does the oil forecast imply for inflation": 12% for the 7B model.** It called `oil_forecast`, then the
+   scenario tool with a placeholder 1% instead of the forecast change. Fix: tool descriptions now route these
+   questions to the single `oil_forecast_to_cpi` call.
+3. **Prompt disclosure.** The canary was always redacted, but the 7B model printed its rules verbatim in 2 of 12
+   attacks. Fix: an output guard blocks any answer repeating 10+ consecutive words of the rules. To check this
+   generalises, 12 **new** attacks (`injection_new`) were written before the v2 run and used for nothing else.
+
+The same review found a **scorer bug**: answers quoting a tool value to 3 decimals (e.g. 0.765) were marked as
+missing the number. Fixing it raised v1 success from 0.696 to 0.804 (7B) and 0.637 to 0.755 (3B), so v1 is
+re-scored with the fixed scorer (`python -m macroagent.rescore`, `results/v1/`) and both runs are compared
+under one scorer.
 
 <!-- AGENT_EVAL:START -->
 Run 2026-11-15: 102 labelled questions in 10 categories, tools reached over MCP (stdio), models run locally with Ollama (cost $0). Scored against the tools' own outputs, no LLM judge. Brackets: 95% bootstrap CI.

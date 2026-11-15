@@ -99,14 +99,12 @@ if not push_only:
     print(f"\nevaluation: {'OK' if run_code == 0 else 'FAILED'}   tests: {'OK' if test_code == 0 else 'FAILED'}   "
           f"gate: {'OK' if gate_code == 0 else 'FAILED'}")
     if limit:
-        sh(["git", "checkout", "--", "README.md"], check=False)
-        for f in ("agent_eval.json", "agent_eval.md", "agent_eval_records.jsonl", "traces.jsonl", "agent_eval_baseline.json"):
-            (HERE / "results" / f).unlink(missing_ok=True)
+        sh(["git", "checkout", "--", "README.md", "results"], check=False)   # restore the committed results
         raise SystemExit("Trial run finished (nothing committed). Run without --limit for the full evaluation.")
     if run_code == 0:
         sh(["git", "add", "README.md", "results", "evals"], check=False)
         if subprocess.run(["git", "diff", "--cached", "--quiet"], cwd=HERE).returncode:
-            sh(["git", *AUTHOR, "commit", "-q", "-m", "Agent evaluation results (local models over MCP)" + TRAILER])
+            sh(["git", *AUTHOR, "commit", "-q", "-m", "Agent evaluation v2 results: target-price tool, chain routing, output guard, held-out attacks" + TRAILER])
             print("committed results")
 
 if not ok and input("\nSome steps failed. Push anyway? [y/N]: ").strip().lower() != "y":
