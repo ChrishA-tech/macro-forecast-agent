@@ -1,4 +1,4 @@
-# Macro Forecast Agent: guarded LangGraph + Claude over oil and UK inflation models
+# Macro Forecast Agent: guarded LangGraph + over oil and UK inflation models
 
 A **LangGraph** agent that answers questions about **Brent crude** and **UK CPI inflation** by calling
 forecasting tools built in three companion projects, and uses **Claude** (optional) to route questions and
