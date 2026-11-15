@@ -14,5 +14,7 @@ jobs:
           cache: pip
       - run: pip install -r requirements.txt
       - run: python -m pytest -q
+      - name: Agent regression gate on committed results
+        run: python -m macroagent.eval_gate
       - name: CLI demo on real data (if synced)
         run: if [ -f vendor_data/uk-cpi-forecasting/data/uk_macro_monthly.csv ]; then python -m macroagent --demo --no-llm; fi

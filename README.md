@@ -57,6 +57,33 @@ Real data up to 2026-10 (Brent) and 2026-09 (CPI); answers: deterministic templa
 
 <!-- EXAMPLES:END -->
 
+## Agent evaluation: local LLMs, MCP, tracing
+
+A second agent (`macroagent/tool_agent.py`) lets the **model decide which tools to call**. The tools are served by
+an **MCP server** (`macroagent/mcp_server.py`, usable from any MCP client) and the models run **locally with
+Ollama** (free, no API key). Each question passes the input guardrail, then model and tool rounds, then a
+**grounding check** (every number must come from a tool result; one repair attempt), then a system-prompt
+**canary** check. Every model and tool call is an **OpenTelemetry** span.
+
+The evaluation (`macroagent/evals.py`, 102 labelled questions in `evals/cases.jsonl`, 10 categories including
+multi-step, out-of-scope and prompt-injection cases) scores each run **deterministically against the tools' own
+outputs**: right tools, right arguments, every key number present and grounded, no leaks. No LLM judge.
+A rules-only policy (the original router and templates) is the baseline the models must beat, and a
+**cascade** (small model first, escalate on a failed run-time check) is compared with the large model alone.
+`python -m macroagent.eval_gate` blocks any regression in CI.
+
+<!-- AGENT_EVAL:START -->
+Results appear here after `python -m macroagent.run_evals` (written by the run, never by hand).
+<!-- AGENT_EVAL:END -->
+
+```bash
+# Python 3.10+ (MCP), Ollama running (ollama.com), then:
+ollama pull qwen2.5:3b && ollama pull qwen2.5:7b
+python -m macroagent.run_evals                         # rules + qwen2.5:3b + qwen2.5:7b over MCP (~30-40 min)
+python -m macroagent.run_evals --models qwen2.5:7b --limit 20   # quick check
+python -m macroagent.eval_gate                         # regression gate vs results/agent_eval_baseline.json
+```
+
 ## Run
 
 ```bash
