@@ -28,8 +28,7 @@ PY = VENV / "bin" / "python"
 MODELS = ["qwen2.5:3b", "qwen2.5:7b"]
 REPO = "macro-forecast-agent"
 AUTHOR = ["-c", "user.name=Chrish Pep Felix A", "-c", "user.email=chrishpepfelixa@gmail.com"]
-TRAILER = ("\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\n"
-           "Claude-Session: https://claude.ai/code/session_01DVp71MJqKBK4sk34js4Jfb")
+TRAILER = ""
 
 
 def sh(cmd, check=True, **kw):
